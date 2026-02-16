@@ -485,6 +485,22 @@ func main() {
 			cmd.WaitForCloudDeploy()
 			return
 		}
+		// Start modes that host a local proxy process should persist usage to SQLite.
+		if !tuiMode || standalone {
+			sqlitePath := filepath.Join(filepath.Dir(configFilePath), "usage.db")
+			mergeResult, enableErr := usage.EnableSQLitePersistence(sqlitePath)
+			if enableErr != nil {
+				log.WithError(enableErr).Warn("usage sqlite persistence disabled, falling back to in-memory only")
+			} else {
+				log.Infof("usage sqlite persistence enabled: path=%s recovered_added=%d recovered_skipped=%d", sqlitePath, mergeResult.Added, mergeResult.Skipped)
+				defer func() {
+					if closeErr := usage.CloseSQLitePersistence(); closeErr != nil {
+						log.WithError(closeErr).Warn("failed to close usage sqlite persistence")
+					}
+				}()
+			}
+		}
+
 		if tuiMode {
 			if standalone {
 				// Standalone mode: start an embedded local server and connect TUI client to it.
@@ -559,7 +575,7 @@ func main() {
 				}
 			}
 		} else {
-			// Start the main proxy service
+			// Start the main proxy service.
 			managementasset.StartAutoUpdater(context.Background(), configFilePath)
 			cmd.StartService(cfg, configFilePath, password)
 		}

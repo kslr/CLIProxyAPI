@@ -69,6 +69,12 @@ func (h *Handler) ImportUsageStatistics(c *gin.Context) {
 	}
 
 	result := h.usageStats.MergeSnapshot(payload.Usage)
+	if store := usage.GetSQLiteStore(); store != nil {
+		if _, err := store.InsertSnapshot(payload.Usage); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to persist usage snapshot"})
+			return
+		}
+	}
 	snapshot := h.usageStats.Snapshot()
 	c.JSON(http.StatusOK, gin.H{
 		"added":           result.Added,
